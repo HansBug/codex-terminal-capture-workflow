@@ -103,6 +103,7 @@ python scripts/terminal_capture.py extract-frames /path/to/demo.mp4 --times 0.8,
 - [`scripts/render_ttyd_scenario.js`](./scripts/render_ttyd_scenario.js): ttyd + Playwright renderer
 - [`references/environment-and-install.md`](./references/environment-and-install.md): dependency and installation guidance
 - [`references/scenario-patterns.md`](./references/scenario-patterns.md): scenario schema and interaction patterns
+- [`references/field-notes.md`](./references/field-notes.md): real-world capture lessons, pitfalls, and sanitized examples
 - [`assets/tmux-vi-showcase.gif`](./assets/tmux-vi-showcase.gif): real showcase asset rendered by the workflow
 
 ## Notes

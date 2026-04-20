@@ -103,6 +103,7 @@ python scripts/terminal_capture.py extract-frames /path/to/demo.mp4 --times 0.8,
 - [`scripts/render_ttyd_scenario.js`](./scripts/render_ttyd_scenario.js)：ttyd + Playwright 渲染器
 - [`references/environment-and-install.md`](./references/environment-and-install.md)：依赖与安装说明
 - [`references/scenario-patterns.md`](./references/scenario-patterns.md)：scenario 结构与交互模式
+- [`references/field-notes.md`](./references/field-notes.md)：实战经验、踩坑记录与脱敏后的真实示例
 - [`assets/tmux-vi-showcase.gif`](./assets/tmux-vi-showcase.gif)：由这套工作流真实渲染出的展示 GIF
 
 ## 说明

@@ -309,3 +309,4 @@ Use `raw_vhs` only when the shared model is not enough and you know you need exp
 - For GIF or video review, probe the rendered media first and choose extraction timestamps that are inside the actual clip duration.
 - For motion assets, hold critical beats such as confirmations or summaries for `400-800ms` when they need to be readable in the animation itself.
 - Motion outputs also hold on the final state by default for 2 seconds. Increase `vhs.endHoldSeconds` when the ending state must be studied, or set it to `0` when you explicitly want an immediate cut.
+- If you are solving a problem that already looks like a real customer delivery, read `field-notes.md` before overfitting the scenario. It captures common failure modes and the fixes that worked in real runs.

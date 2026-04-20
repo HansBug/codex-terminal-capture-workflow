@@ -82,3 +82,4 @@ Inspect the generated media against the user’s actual concern, not just genera
 
 - Read `references/environment-and-install.md` when dependencies are missing or the user asks what to install.
 - Read `references/scenario-patterns.md` when building or editing a scenario for interactive flows, long output, teaser captures, or engine-specific wait rules.
+- Read `references/field-notes.md` when the task starts looking like a real production capture instead of a toy example, especially for long commands, solver-like outputs, split-per-command deliverables, or flaky wait conditions.
