@@ -72,6 +72,8 @@ npx playwright install chromium
 
 ## 基本使用
 
+在开始设计稍微复杂一点的 scenario 前，先读 [`references/field-notes.md`](./references/field-notes.md)。里面整理了真实项目里最容易踩的坑：长命令续行、等待条件不稳、按命令拆分交付，以及不同引擎的 setup 取舍。
+
 先检查环境：
 
 ```bash

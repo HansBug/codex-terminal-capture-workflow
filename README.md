@@ -72,6 +72,8 @@ npx playwright install chromium
 
 ## Basic Usage
 
+Before building a nontrivial scenario, read [`references/field-notes.md`](./references/field-notes.md). It captures the failure modes that show up in real capture work: long command wrapping, flaky waits, split-per-command deliverables, and engine-specific setup tradeoffs.
+
 Check the environment first:
 
 ```bash
