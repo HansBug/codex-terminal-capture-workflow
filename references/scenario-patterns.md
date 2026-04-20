@@ -50,6 +50,11 @@ For motion outputs, `endHoldSeconds` controls how long the final frame stays on 
 
 - `command`
   - Type a full command, optionally clear first, optionally capture the typed state, then wait for output.
+  - Supports optional long-command wrapping fields:
+    - `wrap_at_columns`
+    - `wrap_indent`
+    - `prompt_columns`
+    - `continuation_prompt_columns`
 - `type`
   - Type text without pressing enter yet.
 - `paste`
@@ -212,6 +217,35 @@ Do not try to fit a long terminal transcript into one screenshot. Wrap the comma
   { "action": "screenshot", "name": "02-page-2" }
 ]
 ```
+
+## Long Command Pattern
+
+Use this when one shell command is longer than the intended terminal width and you want the typed state to remain readable.
+
+```json
+[
+  {
+    "action": "command",
+    "text": "python -m pyfcstm sysdesim validate -i tmp/model1_fixed_v2.xml --left-machine-alias StateMachine__Control_region2 --left-state H.L --right-machine-alias StateMachine__Control_region3 --right-state X",
+    "clear_before": true,
+    "wrap_at_columns": 150,
+    "prompt_columns": 17,
+    "continuation_prompt_columns": 0,
+    "wrap_indent": 2,
+    "typed_shot": "01-command-typed",
+    "wait_for_text": "status: SAT",
+    "timeout_ms": 30000
+  }
+]
+```
+
+Behavior notes:
+
+- The renderer rewrites the single-line shell command into backslash-continued lines before typing it.
+- Breaks prefer whitespace outside quoted regions.
+- `prompt_columns` should match the visible width of the first prompt line.
+- `continuation_prompt_columns` is useful when continuation lines also have a visible prompt or gutter.
+- Use this for display stability only. If the command is semantically fragile or visually too large even after wrapping, prefer a helper shell script instead.
 
 ## Engine-Specific Wait Pattern
 

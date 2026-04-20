@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import platform
+import re
 import shlex
 import shutil
 import subprocess
@@ -79,10 +80,114 @@ def format_duration(ms: int) -> str:
     return f"{ms}ms"
 
 
+def _command_wrap_breakpoints(text: str) -> list[int]:
+    """Return safe wrap breakpoints outside quoted shell regions."""
+    points: list[int] = []
+    in_single = False
+    in_double = False
+    escaped = False
+
+    for index, char in enumerate(text):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\" and not in_single:
+            escaped = True
+            continue
+        if char == "'" and not in_double:
+            in_single = not in_single
+            continue
+        if char == '"' and not in_single:
+            in_double = not in_double
+            continue
+        if char.isspace() and not in_single and not in_double:
+            points.append(index)
+
+    return points
+
+
+def wrap_shell_command_text(
+    text: str,
+    wrap_at_columns: int,
+    continuation_indent: int = 2,
+    prompt_columns: int = 0,
+    continuation_prompt_columns: int = 0,
+) -> str:
+    """
+    Wrap one shell command into backslash-continued lines for display stability.
+
+    The wrapped text stays shell-equivalent by inserting ``\\`` before each
+    synthetic newline. Breaks prefer whitespace outside quoted regions.
+
+    :param text: Raw shell command text.
+    :type text: str
+    :param wrap_at_columns: Maximum display width before wrapping.
+    :type wrap_at_columns: int
+    :param continuation_indent: Number of leading spaces on continuation lines.
+    :type continuation_indent: int, optional
+    :param prompt_columns: Visible prompt width on the first command line.
+    :type prompt_columns: int, optional
+    :param continuation_prompt_columns: Visible prompt width on wrapped
+        continuation lines.
+    :type continuation_prompt_columns: int, optional
+    :return: Wrapped shell command text.
+    :rtype: str
+    """
+    wrap_at_columns = max(20, int(wrap_at_columns))
+    continuation_indent = max(0, int(continuation_indent))
+    prompt_columns = max(0, int(prompt_columns))
+    continuation_prompt_columns = max(0, int(continuation_prompt_columns))
+    indent = " " * continuation_indent
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n").strip("\n")
+    if "\n" in normalized:
+        return normalized
+
+    safe_points = set(_command_wrap_breakpoints(normalized))
+    lines: list[str] = []
+    start = 0
+    current_limit = max(12, wrap_at_columns - prompt_columns - 2)
+
+    while len(normalized) - start > current_limit:
+        end = start + current_limit
+        break_index = -1
+
+        for index in range(end, start, -1):
+            if index - 1 in safe_points:
+                break_index = index - 1
+                break
+
+        if break_index < start:
+            break_index = end
+            while break_index > start and normalized[break_index - 1].isspace():
+                break_index -= 1
+            if break_index <= start:
+                return normalized
+
+        chunk = normalized[start:break_index].rstrip()
+        if not chunk:
+            return normalized
+
+        lines.append(f"{chunk} \\")
+        start = break_index
+        while start < len(normalized) and normalized[start].isspace():
+            start += 1
+        current_limit = max(
+            12,
+            wrap_at_columns
+            - continuation_prompt_columns
+            - continuation_indent
+            - 2,
+        )
+
+    lines.append(f"{indent if lines else ''}{normalized[start:]}")
+    if len(lines) > 1:
+        return "\n".join([lines[0], *[f"{indent}{line}" for line in lines[1:]]])
+    return lines[0]
+
+
 def escape_vhs_text(text: str) -> str:
     return (
-        text.replace("\\", "\\\\")
-        .replace("\r", "\\r")
+        text.replace("\r", "\\r")
         .replace("\t", "\\t")
         .replace('"', '\\"')
     )
@@ -98,6 +203,30 @@ def resolve_wait_pattern(step: dict[str, Any], engine: str) -> str | None:
     if "wait_for_text_by_engine" in step:
         return step["wait_for_text_by_engine"].get(engine) or step.get("wait_for_text")
     return step.get("pattern") or step.get("wait_for_text")
+
+
+def resolve_command_text(step: dict[str, Any]) -> str:
+    """
+    Return the rendered command text for one scenario step.
+
+    :param step: Scenario step dictionary.
+    :type step: dict[str, typing.Any]
+    :return: Command text to type into the terminal.
+    :rtype: str
+    """
+    text = step["text"]
+    wrap_at_columns = step.get("wrap_at_columns")
+    if wrap_at_columns is not None:
+        return wrap_shell_command_text(
+            text,
+            wrap_at_columns=wrap_at_columns,
+            continuation_indent=step.get("wrap_indent", 2),
+            prompt_columns=step.get("prompt_columns", 0),
+            continuation_prompt_columns=step.get(
+                "continuation_prompt_columns", 0
+            ),
+        )
+    return text
 
 
 def ensure_input_event_fields(event: dict[str, Any], *fields: str) -> None:
@@ -635,7 +764,13 @@ def build_vhs_tape(scenario: dict[str, Any], out_dir: Path) -> str:
             if step.get("clear_before"):
                 lines.append("Ctrl+L")
                 lines.append("Sleep 120ms")
-            lines.append(f'Type "{escape_vhs_text(step["text"])}"')
+            command_text = resolve_command_text(step)
+            lines.extend(
+                build_vhs_text_commands(
+                    command_text,
+                    parse_positive_int(step.get("delay_ms", 0), "command delay") or None,
+                )
+            )
             if step.get("typed_shot"):
                 typed_path = out_dir / f'{step["typed_shot"]}.png'
                 lines.append(f'Screenshot "{typed_path.as_posix()}"')

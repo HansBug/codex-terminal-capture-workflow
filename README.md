@@ -16,6 +16,7 @@
 - Long-output capture with pagers instead of forcing everything into one frame
 - Visual QA by probing rendered media and extracting representative frames
 - User-controlled window sizes for both ttyd and VHS outputs
+- Column-aware long-command wrapping for `command` steps so shell input stays readable in narrow terminal captures
 
 ## Input Model
 
@@ -26,6 +27,15 @@ Scenarios can compose interactions instead of hard-coding only `y/N` prompts:
 - `press`: press a key or combo such as `ctrl+b`, `ctrl+shift+*`, `ctrl+[`, `alt+enter`, `pagedown`
 - `input`: build richer sequences from `text`, `paste`, `press`, and `sleep` events
 - `raw_vhs`: explicit VHS escape hatch when you need engine-specific tape lines
+
+For `command` steps, scenarios can also request column-aware wrapping with:
+
+- `wrap_at_columns`: target terminal width in characters
+- `wrap_indent`: indentation for wrapped continuation lines, defaults to `2`
+- `prompt_columns`: visible prompt width on the first line
+- `continuation_prompt_columns`: visible prompt width on continuation lines
+
+When these fields are set, the renderers split long shell commands into backslash-continued lines before typing them. This avoids the common capture failure where a long command visually overwrites the current line because the simulated terminal width and the shell's line editor disagree.
 
 Modifier names are normalized case-insensitively, so `ctrl+b`, `Ctrl+B`, and `CONTROL+b` all work. Printable-key chords such as `ctrl+*`, `ctrl+shift+*`, `ctrl+%`, and `ctrl+[` are supported across both engines. When you need special-key chords that VHS itself rejects, prefer the `ttyd + Playwright` path.
 
@@ -101,4 +111,5 @@ python scripts/terminal_capture.py extract-frames /path/to/demo.mp4 --times 0.8,
 - Prefer visible-text waits over fixed sleeps whenever possible.
 - Wrap fragile shell pipelines in helper scripts before embedding them in a scenario.
 - Route long output through `less -R` or another pager instead of forcing a huge transcript into one screenshot.
+- For long single-line shell commands, prefer `command` with `wrap_at_columns` instead of hoping the terminal emulator and shell prompt wrap the same way on their own.
 - Motion outputs hold the final state for 2 seconds by default. Override that with `vhs.endHoldSeconds`, or set it to `0` when you explicitly want an immediate cut.

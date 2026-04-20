@@ -172,6 +172,114 @@ function splitTextLines(text) {
   return String(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
 }
 
+function commandWrapBreakpoints(text) {
+  const points = [];
+  let inSingle = false;
+  let inDouble = false;
+  let escaped = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\" && !inSingle) {
+      escaped = true;
+      continue;
+    }
+    if (char === "'" && !inDouble) {
+      inSingle = !inSingle;
+      continue;
+    }
+    if (char === '"' && !inSingle) {
+      inDouble = !inDouble;
+      continue;
+    }
+    if (/\s/.test(char) && !inSingle && !inDouble) {
+      points.push(index);
+    }
+  }
+
+  return new Set(points);
+}
+
+function wrapShellCommandText(
+  text,
+  wrapAtColumns,
+  continuationIndent = 2,
+  promptColumns = 0,
+  continuationPromptColumns = 0,
+) {
+  const normalized = String(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n+$/, "");
+  if (normalized.includes("\n")) {
+    return normalized;
+  }
+
+  const maxColumns = Math.max(20, Number(wrapAtColumns) || 0);
+  const indentWidth = Math.max(0, Number(continuationIndent) || 0);
+  const firstPromptWidth = Math.max(0, Number(promptColumns) || 0);
+  const nextPromptWidth = Math.max(0, Number(continuationPromptColumns) || 0);
+  const indent = " ".repeat(indentWidth);
+  const safePoints = commandWrapBreakpoints(normalized);
+  const lines = [];
+  let start = 0;
+  let currentLimit = Math.max(12, maxColumns - firstPromptWidth - 2);
+
+  while (normalized.length - start > currentLimit) {
+    const end = start + currentLimit;
+    let breakIndex = -1;
+
+    for (let index = end; index > start; index -= 1) {
+      if (safePoints.has(index - 1)) {
+        breakIndex = index - 1;
+        break;
+      }
+    }
+
+    if (breakIndex < start) {
+      breakIndex = end;
+      while (breakIndex > start && /\s/.test(normalized[breakIndex - 1])) {
+        breakIndex -= 1;
+      }
+      if (breakIndex <= start) {
+        return normalized;
+      }
+    }
+
+    const chunk = normalized.slice(start, breakIndex).replace(/\s+$/, "");
+    if (!chunk) {
+      return normalized;
+    }
+
+    lines.push(`${chunk} \\`);
+    start = breakIndex;
+    while (start < normalized.length && /\s/.test(normalized[start])) {
+      start += 1;
+    }
+    currentLimit = Math.max(12, maxColumns - nextPromptWidth - indentWidth - 2);
+  }
+
+  lines.push(`${lines.length ? indent : ""}${normalized.slice(start)}`);
+  if (lines.length > 1) {
+    return [lines[0], ...lines.slice(1).map((line) => `${indent}${line}`)].join("\n");
+  }
+  return lines[0];
+}
+
+function resolveCommandText(step) {
+  if (step.wrap_at_columns != null) {
+    return wrapShellCommandText(
+      step.text,
+      step.wrap_at_columns,
+      step.wrap_indent ?? 2,
+      step.prompt_columns ?? 0,
+      step.continuation_prompt_columns ?? 0,
+    );
+  }
+  return step.text;
+}
+
 async function typeText(page, text, delayMs) {
   await focusTerminal(page);
   const parts = splitTextLines(text);
@@ -233,7 +341,7 @@ async function runCommandStep(page, outDir, step, typingDelayMs) {
     await sleep(120);
   }
 
-  await typeText(page, step.text, step.delay_ms ?? typingDelayMs);
+  await typeText(page, resolveCommandText(step), step.delay_ms ?? typingDelayMs);
 
   if (step.typed_shot) {
     await capture(page, outDir, step.typed_shot);
