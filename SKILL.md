@@ -11,6 +11,7 @@ Produce terminal assets through two non-intrusive engines:
 
 - `ttyd + Playwright` for documentation-oriented screenshots
 - `VHS` for `gif`, `mp4`, `webm`, and staged stills, with a default final hold on motion outputs so viewers can read the ending state
+- A shared interaction model for arbitrary text input, multiline paste, key presses, modifier chords, and multi-step terminal/TUI flows
 
 Always start by resolving the installed skill root, then run environment detection, choose the engine, author a scenario, render, visually inspect, and iterate.
 
@@ -40,18 +41,24 @@ If that path does not exist, locate the repo copy that contains this `SKILL.md`.
    - `vhs.endHoldSeconds` when the user wants a specific frozen ending length for GIF or video. If it is omitted, motion outputs default to a short final hold.
 6. For large output, do not force everything into one frame. Route the command through `less -R` or another pager and capture specific pages with `PageDown`.
 7. For fragile commands, wrap them in a helper shell script inside the user workspace instead of keeping a long pipeline inline in the scenario.
-8. Render with `python "$SKILL_ROOT/scripts/terminal_capture.py" render <engine> <scenario-path> [--output-root <dir>]`.
-9. If the user asked for visual verification, or the asset is customer-facing, inspect the final stills directly. For video or GIF, first run `python "$SKILL_ROOT/scripts/terminal_capture.py" probe-media <media>` to get the duration and suggested timestamps, then extract representative frames with `python "$SKILL_ROOT/scripts/terminal_capture.py" extract-frames <media> --times <comma-separated-seconds>`.
-10. If the visual review fails, adjust the scenario and rerender. Do not stop at “the command succeeded” when the artifact itself is the deliverable.
-11. If a prompt or confirmation beat is too brief in motion output, add a short `sleep` step before the reply so the state is legible in GIF or video, then rerender.
+8. Use `input` steps when the user needs more than a single command or reply. Compose `text`, `paste`, `press`, and `sleep` events instead of faking the flow with a giant inline shell command.
+9. Prefer `ttyd + Playwright` when the user needs exotic key chords that VHS may reject, especially multi-modifier special-key combinations. Use VHS when the user primarily needs motion output.
+10. For `tmux`, `vim`/`vi`, `less`, `fzf`, and other TUI flows, plan around visible state changes and explicit waits, not fixed timing guesses.
+11. Render with `python "$SKILL_ROOT/scripts/terminal_capture.py" render <engine> <scenario-path> [--output-root <dir>]`.
+12. If the user asked for visual verification, or the asset is customer-facing, inspect the final stills directly. For video or GIF, first run `python "$SKILL_ROOT/scripts/terminal_capture.py" probe-media <media>` to get the duration and suggested timestamps, then extract representative frames with `python "$SKILL_ROOT/scripts/terminal_capture.py" extract-frames <media> --times <comma-separated-seconds>`.
+13. If the visual review fails, adjust the scenario and rerender. Do not stop at “the command succeeded” when the artifact itself is the deliverable.
+14. If a prompt or confirmation beat is too brief in motion output, add a short `sleep` step before the reply so the state is legible in GIF or video, then rerender.
 
 ## Scenario Rules
 
 - Keep `cwd` aligned with the target project or scratch directory.
 - Keep the scenario in the user workspace, but keep the renderer commands anchored to `SKILL_ROOT`.
 - Use `pattern_by_engine` or `wait_for_text_by_engine` when shell prompts differ between ttyd and VHS.
+- Use `type`, `paste`, `press`, and `input` steps for real interactions instead of embedding everything in one shell command.
+- Key names are normalized case-insensitively. Chords like `ctrl+b`, `ctrl+shift+*`, `ctrl+[`, `alt+enter`, and `shift+tab` can be represented directly in scenarios.
 - Use `typed_shot`, `result_shot`, and explicit `screenshot` steps when the user cares about exact stages.
 - Use `hide` and `show` to suppress setup in teaser videos.
+- VHS `paste` is rendered as fast exact typing and does not depend on the system clipboard.
 - Motion outputs automatically hold on the final frame for 2 seconds unless the scenario sets `vhs.endHoldSeconds` or `vhs.endHoldMs`.
 - Use `screenshots.autocrop` for tighter documentation images. Disable it only when the user explicitly wants full-frame output.
 

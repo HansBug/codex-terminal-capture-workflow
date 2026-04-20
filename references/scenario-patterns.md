@@ -52,8 +52,12 @@ For motion outputs, `endHoldSeconds` controls how long the final frame stays on 
   - Type a full command, optionally clear first, optionally capture the typed state, then wait for output.
 - `type`
   - Type text without pressing enter yet.
+- `paste`
+  - Inject text quickly. Use this for multiline content, prepared answers, or large snippets.
 - `press`
-  - Press a key such as `Enter`, `PageDown`, `Control+L`, or `q`.
+  - Press a key or key chord such as `Enter`, `PageDown`, `ctrl+b`, `ctrl+shift+*`, `alt+enter`, or `ctrl+[`.
+- `input`
+  - Compose a sequence of `text`, `paste`, `press`, and `sleep` events for richer interactions.
 - `wait_for_text`
   - Wait until the current visible screen contains the expected text.
 - `screenshot`
@@ -62,6 +66,47 @@ For motion outputs, `endHoldSeconds` controls how long the final frame stays on 
   - Explicit wait when there is no better observable condition.
 - `hide` and `show`
   - VHS-only visibility control for teaser captures.
+- `raw_vhs`
+  - Inject explicit VHS tape lines when you need engine-specific control.
+
+## Generalized Input Model
+
+Prefer the shared input model over brittle one-off shell tricks.
+
+### Supported event kinds inside `input`
+
+```json
+{
+  "action": "input",
+  "events": [
+    { "kind": "text", "text": "hello world" },
+    { "kind": "press", "key": "Enter" },
+    { "kind": "paste", "text": "line 1\nline 2" },
+    { "kind": "sleep", "ms": 300 }
+  ]
+}
+```
+
+### Key normalization
+
+- Modifier names are case-insensitive: `ctrl`, `Ctrl`, `CONTROL` all normalize.
+- Common aliases are normalized: `esc`, `return`, `pgdn`, `left`, `right`, `space`.
+- Printable-key chords such as `ctrl+*`, `ctrl+shift+*`, `ctrl+%`, `ctrl+[`, and `alt+x` work across both engines.
+- VHS also accepts many single-modifier special-key chords such as `shift+tab`, `ctrl+left`, and `alt+enter`.
+- Some multi-modifier special-key chords are rejected by the VHS parser itself. When the user needs those, prefer the `ttyd + Playwright` engine.
+
+### Multiline paste
+
+`paste` is the right default for multiline content:
+
+```json
+{
+  "action": "paste",
+  "text": "first line\nsecond line\nthird line"
+}
+```
+
+For VHS, this is rendered as fast exact typing. It does not depend on `xclip`, `xsel`, or any desktop clipboard tool.
 
 ## Interactive Confirmation Pattern
 
@@ -111,6 +156,40 @@ Use when the flow alternates between prompts and replies.
   { "action": "press", "key": "Enter" },
   { "action": "wait_for_text", "pattern": "Package manager", "timeout_ms": 10000 },
   { "action": "screenshot", "name": "02-package-manager-prompt" }
+]
+```
+
+## Arbitrary Interaction Pattern
+
+Use this for `tmux`, `vim`/`vi`, shell wizards, pagers, or anything that needs more than one reply.
+
+```json
+[
+  {
+    "action": "command",
+    "text": "tmux -f /dev/null new-session -s demo",
+    "clear_before": true,
+    "wait_for_text": "demo",
+    "timeout_ms": 10000
+  },
+  {
+    "action": "input",
+    "events": [
+      { "kind": "text", "text": "vi -Nu NONE -n notes.txt" },
+      { "kind": "press", "key": "Enter" }
+    ]
+  },
+  { "action": "wait_for_text", "pattern": "notes\\.txt", "timeout_ms": 10000 },
+  {
+    "action": "input",
+    "events": [
+      { "kind": "press", "key": "ctrl+b" },
+      { "kind": "press", "key": "%" },
+      { "kind": "sleep", "ms": 250 },
+      { "kind": "press", "key": "ctrl+b" },
+      { "kind": "press", "key": "left" }
+    ]
+  }
 ]
 ```
 
@@ -168,11 +247,29 @@ Use `hide` and `show` to skip setup while still waiting for a meaningful visible
 ]
 ```
 
+## Raw VHS Escape Hatch
+
+Use `raw_vhs` only when the shared model is not enough and you know you need explicit tape commands.
+
+```json
+[
+  {
+    "action": "raw_vhs",
+    "lines": [
+      "Hide",
+      "Sleep 500ms",
+      "Show"
+    ]
+  }
+]
+```
+
 ## Practical Rules
 
 - Keep the scenario in the user workspace, not in the skill directory.
 - When the user specifies a size, reflect it in both the ttyd viewport and the VHS canvas.
 - Prefer waiting on visible text over fixed sleeps.
+- Use `input` when the user needs multiple replies, combo presses, or TUI navigation.
 - If the output command is complex or shell-fragile, move it into a wrapper script in the user workspace.
 - If the asset is customer-facing, add explicit screenshot steps at the exact moments the user will care about during review.
 - For GIF or video review, probe the rendered media first and choose extraction timestamps that are inside the actual clip duration.

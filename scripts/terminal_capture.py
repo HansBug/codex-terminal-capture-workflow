@@ -16,6 +16,51 @@ from typing import Any
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_ROOTNAME = ".terminal-capture-output"
 DEFAULT_END_HOLD_MS = 2000
+VHS_KEY_ALIASES = {
+    "ctrl": "Ctrl",
+    "control": "Ctrl",
+    "alt": "Alt",
+    "shift": "Shift",
+    "esc": "Ctrl+[",
+    "escape": "Ctrl+[",
+    "enter": "Enter",
+    "return": "Enter",
+    "tab": "Tab",
+    "pgup": "PageUp",
+    "pageup": "PageUp",
+    "pgdn": "PageDown",
+    "pgdown": "PageDown",
+    "pagedown": "PageDown",
+    "del": "Delete",
+    "delete": "Delete",
+    "ins": "Insert",
+    "insert": "Insert",
+    "home": "Home",
+    "end": "End",
+    "backspace": "Backspace",
+    "up": "Up",
+    "down": "Down",
+    "left": "Left",
+    "right": "Right",
+    "spacebar": "Space",
+    "space": "Space",
+}
+VHS_SPECIAL_KEYS = {
+    "Enter",
+    "Tab",
+    "Space",
+    "Backspace",
+    "Delete",
+    "Insert",
+    "Home",
+    "End",
+    "PageUp",
+    "PageDown",
+    "Up",
+    "Down",
+    "Left",
+    "Right",
+}
 BROWSER_CANDIDATES = [
     "google-chrome",
     "google-chrome-stable",
@@ -35,7 +80,12 @@ def format_duration(ms: int) -> str:
 
 
 def escape_vhs_text(text: str) -> str:
-    return text.replace("\\", "\\\\").replace('"', '\\"')
+    return (
+        text.replace("\\", "\\\\")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+        .replace('"', '\\"')
+    )
 
 
 def escape_vhs_regex(pattern: str) -> str:
@@ -48,6 +98,13 @@ def resolve_wait_pattern(step: dict[str, Any], engine: str) -> str | None:
     if "wait_for_text_by_engine" in step:
         return step["wait_for_text_by_engine"].get(engine) or step.get("wait_for_text")
     return step.get("pattern") or step.get("wait_for_text")
+
+
+def ensure_input_event_fields(event: dict[str, Any], *fields: str) -> None:
+    missing = [field for field in fields if field not in event]
+    if missing:
+        missing_text = ", ".join(missing)
+        raise ValueError(f"Input event is missing required field(s): {missing_text}")
 
 
 def parse_positive_int(value: Any, label: str) -> int:
@@ -83,6 +140,126 @@ def resolve_end_hold_ms(cfg: dict[str, Any]) -> int:
     if has_motion_outputs(cfg):
         return DEFAULT_END_HOLD_MS
     return 0
+
+
+def build_vhs_type_command(text: str, delay_ms: int | None = None) -> str:
+    delay_part = f"@{format_duration(delay_ms)}" if delay_ms else ""
+    return f'Type{delay_part} "{escape_vhs_text(text)}"'
+
+
+def build_vhs_text_commands(text: str, delay_ms: int | None = None) -> list[str]:
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    parts = normalized.split("\n")
+    commands: list[str] = []
+
+    for index, part in enumerate(parts):
+        if part:
+            commands.append(build_vhs_type_command(part, delay_ms))
+        if index != len(parts) - 1:
+            commands.append("Enter")
+
+    return commands or [build_vhs_type_command("", delay_ms)]
+
+
+def normalize_vhs_key_part(part: str) -> str:
+    trimmed = part.strip()
+    if not trimmed:
+        raise ValueError("VHS key commands cannot contain empty segments.")
+    if len(trimmed) == 1:
+        return trimmed
+    return VHS_KEY_ALIASES.get(trimmed.casefold(), trimmed)
+
+
+def normalize_vhs_key(key: str) -> str:
+    trimmed = key.strip()
+    if not trimmed:
+        raise ValueError("VHS key commands cannot be empty.")
+
+    parts = [part.strip() for part in trimmed.split("+")]
+    if len(parts) == 1:
+        return normalize_vhs_key_part(parts[0])
+
+    normalized_parts = [normalize_vhs_key_part(part) for part in parts]
+    modifiers = normalized_parts[:-1]
+    base = normalized_parts[-1]
+
+    if base == "Ctrl+[":
+        if modifiers:
+            raise ValueError(
+                f"Unsupported VHS key combo `{key}`. Prefer ttyd for this chord or use `raw_vhs` for explicit VHS commands."
+            )
+        return base
+
+    if len(base) == 1:
+        return "+".join([*modifiers, base])
+
+    if base in VHS_SPECIAL_KEYS and len(modifiers) <= 1:
+        return "+".join([*modifiers, base])
+
+    raise ValueError(
+        f"Unsupported VHS key combo `{key}`. Prefer ttyd for this chord or use `raw_vhs` for explicit VHS commands."
+    )
+
+
+def build_vhs_press_commands(key: str, repeat: int = 1, delay_ms: int | None = None) -> list[str]:
+    normalized = normalize_vhs_key(key)
+    repeat = max(1, repeat)
+    delay_part = f"@{format_duration(delay_ms)}" if delay_ms else ""
+
+    if len(normalized) == 1 and normalized.isprintable():
+        return [build_vhs_type_command(normalized * repeat, delay_ms)]
+
+    if normalized in VHS_SPECIAL_KEYS or normalized.startswith("Ctrl+") or normalized.startswith("Alt+") or normalized.startswith("Shift+"):
+        repeat_part = f" {repeat}" if repeat != 1 else ""
+        return [f"{normalized}{delay_part}{repeat_part}"]
+
+    raise ValueError(f"Unsupported VHS key `{key}`. Prefer ttyd for this chord or use `raw_vhs` for explicit VHS commands.")
+
+
+def append_vhs_input_event(lines: list[str], event: dict[str, Any]) -> None:
+    kind = event.get("kind")
+
+    if kind == "sleep":
+        ensure_input_event_fields(event, "ms")
+        lines.append(f'Sleep {format_duration(parse_positive_int(event["ms"], "input sleep ms"))}')
+        return
+
+    if kind == "text":
+        ensure_input_event_fields(event, "text")
+        delay_ms = event.get("delay_ms")
+        lines.extend(
+            build_vhs_text_commands(
+                event["text"],
+                parse_positive_int(delay_ms, "input text delay") if delay_ms is not None else None,
+            )
+        )
+        return
+
+    if kind == "paste":
+        ensure_input_event_fields(event, "text")
+        delay_ms = event.get("delay_ms")
+        lines.extend(
+            build_vhs_text_commands(
+                event["text"],
+                parse_positive_int(delay_ms, "input paste delay") if delay_ms is not None else 1,
+            )
+        )
+        return
+
+    if kind == "press":
+        ensure_input_event_fields(event, "key")
+        repeat = parse_positive_int(event.get("repeat", 1), "input press repeat") or 1
+        delay_ms = event.get("delay_ms")
+        lines.extend(
+            build_vhs_press_commands(
+                event["key"],
+                repeat=repeat,
+                delay_ms=parse_positive_int(delay_ms, "input press delay") if delay_ms is not None else None,
+            )
+        )
+        return
+
+    raise ValueError(f"Unsupported input event kind: {kind}")
 
 
 def run_checked(cmd: list[str], cwd: Path, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -418,18 +595,33 @@ def build_vhs_tape(scenario: dict[str, Any], out_dir: Path) -> str:
         if action == "sleep":
             lines.append(f'Sleep {format_duration(step["ms"])}')
         elif action == "type":
-            lines.append(f'Type "{escape_vhs_text(step["text"])}"')
+            delay_ms = step.get("delay_ms")
+            lines.extend(
+                build_vhs_text_commands(
+                    step["text"],
+                    parse_positive_int(delay_ms, "type delay") if delay_ms is not None else None,
+                )
+            )
+        elif action == "paste":
+            delay_ms = step.get("delay_ms")
+            lines.extend(
+                build_vhs_text_commands(
+                    step["text"],
+                    parse_positive_int(delay_ms, "paste delay") if delay_ms is not None else 1,
+                )
+            )
         elif action == "press":
-            key = step["key"]
-            repeat = f' {step["repeat"]}' if step.get("repeat", 1) != 1 else ""
-            if key.startswith("Control+"):
-                lines.append(f'Ctrl+{key[len("Control+") :]}')
-            elif key.startswith("Ctrl+"):
-                lines.append(key)
-            elif len(key) == 1 and key.isprintable():
-                lines.append(f'Type "{escape_vhs_text(key)}"')
-            else:
-                lines.append(f"{key}{repeat}")
+            delay_ms = step.get("delay_ms")
+            lines.extend(
+                build_vhs_press_commands(
+                    step["key"],
+                    repeat=parse_positive_int(step.get("repeat", 1), "press repeat") or 1,
+                    delay_ms=parse_positive_int(delay_ms, "press delay") if delay_ms is not None else None,
+                )
+            )
+        elif action == "input":
+            for event in step.get("events", []):
+                append_vhs_input_event(lines, event)
         elif action == "wait_for_text":
             timeout = step.get("timeout_ms")
             timeout_part = f'@{format_duration(timeout)}' if timeout else ""
@@ -464,6 +656,11 @@ def build_vhs_tape(scenario: dict[str, Any], out_dir: Path) -> str:
             lines.append("Hide")
         elif action == "show":
             lines.append("Show")
+        elif action == "raw_vhs":
+            raw_lines = step.get("lines") or ([step["line"]] if "line" in step else [])
+            if not raw_lines:
+                raise ValueError("raw_vhs requires `line` or `lines`.")
+            lines.extend(raw_lines)
         else:
             raise ValueError(f"Unsupported VHS action: {action}")
 

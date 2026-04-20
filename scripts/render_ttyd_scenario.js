@@ -9,6 +9,42 @@ const BROWSER_CANDIDATES = [
   "chromium",
   "chromium-browser",
 ];
+const KEY_ALIASES = new Map([
+  ["ctrl", "Control"],
+  ["control", "Control"],
+  ["alt", "Alt"],
+  ["shift", "Shift"],
+  ["meta", "Meta"],
+  ["cmd", "Meta"],
+  ["command", "Meta"],
+  ["esc", "Escape"],
+  ["escape", "Escape"],
+  ["enter", "Enter"],
+  ["return", "Enter"],
+  ["tab", "Tab"],
+  ["pgup", "PageUp"],
+  ["pageup", "PageUp"],
+  ["pgdn", "PageDown"],
+  ["pgdown", "PageDown"],
+  ["pagedown", "PageDown"],
+  ["del", "Delete"],
+  ["delete", "Delete"],
+  ["ins", "Insert"],
+  ["insert", "Insert"],
+  ["home", "Home"],
+  ["end", "End"],
+  ["backspace", "Backspace"],
+  ["up", "ArrowUp"],
+  ["arrowup", "ArrowUp"],
+  ["down", "ArrowDown"],
+  ["arrowdown", "ArrowDown"],
+  ["left", "ArrowLeft"],
+  ["arrowleft", "ArrowLeft"],
+  ["right", "ArrowRight"],
+  ["arrowright", "ArrowRight"],
+  ["spacebar", " "],
+  ["space", " "],
+]);
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -105,17 +141,89 @@ async function capture(page, outDir, name) {
   });
 }
 
-function normalizeKey(key) {
-  if (key.startsWith("Ctrl+")) {
-    return `Control+${key.slice(5)}`;
+function normalizeKeyPart(part) {
+  const trimmed = part.trim();
+  if (!trimmed) {
+    throw new Error(`Invalid key part: ${part}`);
   }
-  return key;
+  if (trimmed.length === 1) {
+    return trimmed;
+  }
+  return KEY_ALIASES.get(trimmed.toLowerCase()) || trimmed;
 }
 
-async function pressKey(page, key, repeat = 1) {
+function normalizeKey(key) {
+  if (!key || typeof key !== "string") {
+    throw new Error(`Invalid key: ${key}`);
+  }
+
+  const parts = key.trim().split("+");
+  return parts.map((part) => normalizeKeyPart(part)).join("+");
+}
+
+async function pressKey(page, key, repeat = 1, delayMs = 0) {
   await focusTerminal(page);
   for (let idx = 0; idx < repeat; idx += 1) {
-    await page.keyboard.press(normalizeKey(key));
+    await page.keyboard.press(normalizeKey(key), { delay: delayMs });
+  }
+}
+
+function splitTextLines(text) {
+  return String(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+}
+
+async function typeText(page, text, delayMs) {
+  await focusTerminal(page);
+  const parts = splitTextLines(text);
+  for (let idx = 0; idx < parts.length; idx += 1) {
+    if (parts[idx]) {
+      await page.keyboard.type(parts[idx], { delay: delayMs });
+    }
+    if (idx !== parts.length - 1) {
+      await page.keyboard.press("Enter");
+    }
+  }
+}
+
+async function pasteText(page, text, delayMs = 0) {
+  if (delayMs > 0) {
+    await typeText(page, text, delayMs);
+    return;
+  }
+  await focusTerminal(page);
+  const parts = splitTextLines(text);
+  for (let idx = 0; idx < parts.length; idx += 1) {
+    if (parts[idx]) {
+      await page.keyboard.insertText(parts[idx]);
+    }
+    if (idx !== parts.length - 1) {
+      await page.keyboard.press("Enter");
+    }
+  }
+}
+
+async function runInputEvent(page, event, typingDelayMs) {
+  switch (event.kind) {
+    case "sleep":
+      await sleep(event.ms);
+      return;
+    case "text":
+      await typeText(page, event.text, event.delay_ms ?? typingDelayMs);
+      return;
+    case "paste":
+      await pasteText(page, event.text, event.delay_ms ?? 0);
+      return;
+    case "press":
+      await pressKey(page, event.key, event.repeat || 1, event.delay_ms || 0);
+      return;
+    default:
+      throw new Error(`Unsupported input event kind: ${event.kind}`);
+  }
+}
+
+async function runInputStep(page, step, typingDelayMs) {
+  for (const event of step.events || []) {
+    await runInputEvent(page, event, typingDelayMs);
   }
 }
 
@@ -125,8 +233,7 @@ async function runCommandStep(page, outDir, step, typingDelayMs) {
     await sleep(120);
   }
 
-  await focusTerminal(page);
-  await page.keyboard.type(step.text, { delay: typingDelayMs });
+  await typeText(page, step.text, step.delay_ms ?? typingDelayMs);
 
   if (step.typed_shot) {
     await capture(page, outDir, step.typed_shot);
@@ -152,11 +259,16 @@ async function runStep(page, outDir, step, typingDelayMs) {
       await sleep(step.ms);
       return;
     case "type":
-      await focusTerminal(page);
-      await page.keyboard.type(step.text, { delay: typingDelayMs });
+      await typeText(page, step.text, step.delay_ms ?? typingDelayMs);
+      return;
+    case "paste":
+      await pasteText(page, step.text, step.delay_ms ?? 0);
       return;
     case "press":
-      await pressKey(page, step.key, step.repeat || 1);
+      await pressKey(page, step.key, step.repeat || 1, step.delay_ms || 0);
+      return;
+    case "input":
+      await runInputStep(page, step, typingDelayMs);
       return;
     case "wait_for_text":
       await waitForText(page, resolveWaitPattern(step), step.timeout_ms || 10000, step.flags || "m");
@@ -170,6 +282,8 @@ async function runStep(page, outDir, step, typingDelayMs) {
     case "hide":
     case "show":
       return;
+    case "raw_vhs":
+      throw new Error("raw_vhs is VHS-only. Render with the VHS engine or use the generic input model for ttyd.");
     default:
       throw new Error(`Unsupported action: ${step.action}`);
   }
