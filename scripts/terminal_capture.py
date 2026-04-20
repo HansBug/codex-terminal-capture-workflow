@@ -15,6 +15,7 @@ from typing import Any
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_ROOTNAME = ".terminal-capture-output"
+DEFAULT_END_HOLD_MS = 2000
 BROWSER_CANDIDATES = [
     "google-chrome",
     "google-chrome-stable",
@@ -47,6 +48,41 @@ def resolve_wait_pattern(step: dict[str, Any], engine: str) -> str | None:
     if "wait_for_text_by_engine" in step:
         return step["wait_for_text_by_engine"].get(engine) or step.get("wait_for_text")
     return step.get("pattern") or step.get("wait_for_text")
+
+
+def parse_positive_int(value: Any, label: str) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{label} must be an integer.") from error
+    return max(0, parsed)
+
+
+def parse_positive_seconds_to_ms(value: Any, label: str) -> int:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{label} must be a number of seconds.") from error
+    return max(0, int(round(parsed * 1000)))
+
+
+def resolve_vhs_outputs(cfg: dict[str, Any]) -> list[str]:
+    outputs = cfg.get("outputs", ["mp4"])
+    return [str(ext).lower() for ext in outputs]
+
+
+def has_motion_outputs(cfg: dict[str, Any]) -> bool:
+    return any(ext in {"gif", "mp4", "webm"} for ext in resolve_vhs_outputs(cfg))
+
+
+def resolve_end_hold_ms(cfg: dict[str, Any]) -> int:
+    if "endHoldMs" in cfg:
+        return parse_positive_int(cfg["endHoldMs"], "vhs.endHoldMs")
+    if "endHoldSeconds" in cfg:
+        return parse_positive_seconds_to_ms(cfg["endHoldSeconds"], "vhs.endHoldSeconds")
+    if has_motion_outputs(cfg):
+        return DEFAULT_END_HOLD_MS
+    return 0
 
 
 def run_checked(cmd: list[str], cwd: Path, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -345,8 +381,9 @@ def build_vhs_tape(scenario: dict[str, Any], out_dir: Path) -> str:
     scenario_name = scenario["name"]
     lines: list[str] = []
     screenshot_settle_ms = cfg.get("screenshotSettleMs", 120)
+    end_hold_ms = resolve_end_hold_ms(cfg)
 
-    for ext in cfg.get("outputs", ["mp4"]):
+    for ext in resolve_vhs_outputs(cfg):
         lines.append(f'Output "{(out_dir / f"{scenario_name}.{ext}").as_posix()}"')
 
     requires = list(dict.fromkeys(["bash", *scenario.get("requires", [])]))
@@ -429,6 +466,9 @@ def build_vhs_tape(scenario: dict[str, Any], out_dir: Path) -> str:
             lines.append("Show")
         else:
             raise ValueError(f"Unsupported VHS action: {action}")
+
+    if end_hold_ms:
+        lines.append(f"Sleep {format_duration(end_hold_ms)}")
 
     lines.append("")
     return "\n".join(lines)

@@ -12,10 +12,12 @@ For Chinese, see [简体中文](#简体中文).
 
 - `ttyd + Playwright` screenshots for docs, guides, reports, and issue comments
 - `VHS` rendering for `gif`, `mp4`, `webm`, and staged screenshots
+- Default final-frame hold for motion outputs so endings do not cut away immediately
 - Interactive prompts such as `y/N`, wizard-style multi-step flows, and confirmation screens
 - Long output via paged captures such as `less -R`
 - Visual review by extracting representative frames from rendered media
 - User-specified window sizes for both ttyd and VHS outputs
+- User-specified final hold length for GIF or video endings
 
 ### Repository structure
 
@@ -104,6 +106,7 @@ python scripts/terminal_capture.py probe-media /path/to/demo.mp4
 - Use `pattern_by_engine` when ttyd and VHS prompts differ.
 - Use `hide` and `show` for homepage or teaser-style captures.
 - Short teaser clips can be well under one second. Run `probe-media` before `extract-frames` so the chosen timestamps are inside the clip duration.
+- Motion outputs default to a 2-second final hold. Override it with `vhs.endHoldSeconds`, or set `0` when you explicitly want no trailing hold.
 
 ## 简体中文
 
@@ -115,10 +118,12 @@ For English, see [English](#english).
 
 - 面向文档、操作指引、报告、评论区的 `ttyd + Playwright` 截图
 - 面向 `gif`、`mp4`、`webm` 和关键帧截图的 `VHS` 渲染
+- 动态资源默认在结尾驻停一小段时间，避免刚结束就切掉
 - `y/N` 确认、向导式多步交互、确认页等交互场景
 - 通过 `less -R` 等分页方式处理长输出
 - 从视频或 GIF 中抽取代表性帧做视觉验收
 - 同时支持用户指定 ttyd 和 VHS 的窗口大小
+- 支持用户指定 GIF/视频结尾驻停秒数
 
 ### 仓库结构
 
@@ -207,3 +212,4 @@ python scripts/terminal_capture.py probe-media /path/to/demo.mp4
 - 当 ttyd 和 VHS 的 prompt 不一致时，用 `pattern_by_engine`。
 - 主页 teaser 一类素材可以用 `hide` 和 `show` 控制可见步骤。
 - 很短的 teaser 视频可能不到 1 秒，抽帧前先跑 `probe-media`，再选落在素材时长内的时间点。
+- 动态输出默认会在最后一帧额外停 2 秒；如果用户想自己控制，就在 scenario 里设置 `vhs.endHoldSeconds`，设成 `0` 则关闭。

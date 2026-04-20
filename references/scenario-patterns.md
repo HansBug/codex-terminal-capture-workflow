@@ -33,7 +33,8 @@ Use this reference when building or editing a scenario JSON.
     "theme": "Ubuntu",
     "typingSpeed": "35ms",
     "framerate": 30,
-    "outputs": ["mp4", "gif"]
+    "outputs": ["mp4", "gif"],
+    "endHoldSeconds": 3
   },
   "screenshots": {
     "autocrop": true,
@@ -42,6 +43,8 @@ Use this reference when building or editing a scenario JSON.
   "steps": []
 }
 ```
+
+For motion outputs, `endHoldSeconds` controls how long the final frame stays on screen after the last action completes. If omitted, GIF/MP4/WebM outputs default to a 2-second final hold. Set it to `0` to disable the extra hold.
 
 ## Step Types
 
@@ -174,3 +177,4 @@ Use `hide` and `show` to skip setup while still waiting for a meaningful visible
 - If the asset is customer-facing, add explicit screenshot steps at the exact moments the user will care about during review.
 - For GIF or video review, probe the rendered media first and choose extraction timestamps that are inside the actual clip duration.
 - For motion assets, hold critical beats such as confirmations or summaries for `400-800ms` when they need to be readable in the animation itself.
+- Motion outputs also hold on the final state by default for 2 seconds. Increase `vhs.endHoldSeconds` when the ending state must be studied, or set it to `0` when you explicitly want an immediate cut.

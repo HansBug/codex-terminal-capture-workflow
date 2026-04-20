@@ -10,7 +10,7 @@ description: Create staged terminal screenshots, PNG stills, GIFs, MP4/WebM demo
 Produce terminal assets through two non-intrusive engines:
 
 - `ttyd + Playwright` for documentation-oriented screenshots
-- `VHS` for `gif`, `mp4`, `webm`, and staged stills
+- `VHS` for `gif`, `mp4`, `webm`, and staged stills, with a default final hold on motion outputs so viewers can read the ending state
 
 Always start by resolving the installed skill root, then run environment detection, choose the engine, author a scenario, render, visually inspect, and iterate.
 
@@ -37,6 +37,7 @@ If that path does not exist, locate the repo copy that contains this `SKILL.md`.
    - `ttyd.viewport.height`
    - `vhs.width`
    - `vhs.height`
+   - `vhs.endHoldSeconds` when the user wants a specific frozen ending length for GIF or video. If it is omitted, motion outputs default to a short final hold.
 6. For large output, do not force everything into one frame. Route the command through `less -R` or another pager and capture specific pages with `PageDown`.
 7. For fragile commands, wrap them in a helper shell script inside the user workspace instead of keeping a long pipeline inline in the scenario.
 8. Render with `python "$SKILL_ROOT/scripts/terminal_capture.py" render <engine> <scenario-path> [--output-root <dir>]`.
@@ -51,6 +52,7 @@ If that path does not exist, locate the repo copy that contains this `SKILL.md`.
 - Use `pattern_by_engine` or `wait_for_text_by_engine` when shell prompts differ between ttyd and VHS.
 - Use `typed_shot`, `result_shot`, and explicit `screenshot` steps when the user cares about exact stages.
 - Use `hide` and `show` to suppress setup in teaser videos.
+- Motion outputs automatically hold on the final frame for 2 seconds unless the scenario sets `vhs.endHoldSeconds` or `vhs.endHoldMs`.
 - Use `screenshots.autocrop` for tighter documentation images. Disable it only when the user explicitly wants full-frame output.
 
 ## Visual Review
@@ -65,6 +67,7 @@ Inspect the generated media against the user’s actual concern, not just genera
 - Whether unwanted setup is hidden in teaser media
 - Whether there is excessive whitespace that harms readability
 - Whether frame-extraction timestamps are inside the actual media duration
+- Whether the final state lingers long enough for a human viewer to read it
 
 ## References
 
