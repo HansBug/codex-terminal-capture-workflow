@@ -1,0 +1,4 @@
+interface:
+  display_name: "Terminal Capture Workflow"
+  short_description: "Create terminal screenshots, GIFs, and demo videos"
+  default_prompt: "Use $terminal-capture-workflow to create terminal screenshots, GIFs, or videos for this guide, report, or demo."

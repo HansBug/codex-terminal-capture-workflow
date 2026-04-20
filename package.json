@@ -1,0 +1,13 @@
+{
+  "name": "terminal-capture-workflow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Codex skill support files for terminal screenshots, GIFs, and videos.",
+  "type": "commonjs",
+  "scripts": {
+    "check": "python3 scripts/terminal_capture.py check"
+  },
+  "devDependencies": {
+    "playwright": "^1.59.1"
+  }
+}
