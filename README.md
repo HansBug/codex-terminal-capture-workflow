@@ -44,7 +44,7 @@ Modifier names are normalized case-insensitively, so `ctrl+b`, `Ctrl+B`, and `CO
 ### Codex CLI
 
 ```bash
-git clone https://github.com/HansBug/codex-terminal-capture-workflow "${CODEX_HOME:-$HOME/.codex}/skills/terminal-capture-workflow"
+git clone https://github.com/HansBug/terminal-capture-workflow "${CODEX_HOME:-$HOME/.codex}/skills/terminal-capture-workflow"
 ```
 
 Then invoke it explicitly as `$terminal-capture-workflow`.
@@ -52,7 +52,7 @@ Then invoke it explicitly as `$terminal-capture-workflow`.
 ### Claude Code
 
 ```bash
-git clone https://github.com/HansBug/codex-terminal-capture-workflow "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/terminal-capture-workflow"
+git clone https://github.com/HansBug/terminal-capture-workflow "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/terminal-capture-workflow"
 ```
 
 Then invoke it explicitly as `/terminal-capture-workflow`, or let Claude Code auto-trigger it from the description in `SKILL.md`.
@@ -60,7 +60,7 @@ Then invoke it explicitly as `/terminal-capture-workflow`, or let Claude Code au
 ### Shared Clone (Both)
 
 ```bash
-git clone https://github.com/HansBug/codex-terminal-capture-workflow ~/src/terminal-capture-workflow
+git clone https://github.com/HansBug/terminal-capture-workflow ~/src/terminal-capture-workflow
 ln -s ~/src/terminal-capture-workflow "${CODEX_HOME:-$HOME/.codex}/skills/terminal-capture-workflow"
 ln -s ~/src/terminal-capture-workflow "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/terminal-capture-workflow"
 ```
