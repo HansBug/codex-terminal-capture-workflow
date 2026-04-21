@@ -1,6 +1,6 @@
 ---
 name: terminal-capture-workflow
-description: Create staged terminal screenshots, PNG stills, GIFs, MP4/WebM demos, and visual QA artifacts without using OS-level desktop input injection. Use when Codex needs terminal capture assets for guides, operation manuals, reports, slide decks, changelogs, or homepage demos, especially for interactive prompts, multi-step CLI flows, long paged output, ttyd/Playwright rendering, VHS rendering, frame extraction, or visual inspection of generated terminal media.
+description: Create staged terminal screenshots, PNG stills, GIFs, MP4/WebM demos, and visual QA artifacts without using OS-level desktop input injection. Use when the agent needs terminal capture assets for guides, operation manuals, reports, slide decks, changelogs, or homepage demos, especially for interactive prompts, multi-step CLI flows, long paged output, ttyd/Playwright rendering, VHS rendering, frame extraction, or visual inspection of generated terminal media.
 ---
 
 # Terminal Capture Workflow
@@ -17,11 +17,12 @@ Always start by resolving the installed skill root, then run environment detecti
 
 ## Skill Root
 
-Before running any command from this skill, resolve the installed skill directory. The default location is usually:
+Before running any command from this skill, resolve the installed skill directory. Try these paths in order:
 
-- `~/.codex/skills/terminal-capture-workflow`
+- `~/.codex/skills/terminal-capture-workflow` (Codex)
+- `~/.claude/skills/terminal-capture-workflow` (Claude Code)
 
-If that path does not exist, locate the repo copy that contains this `SKILL.md`. Do not assume the user workspace also contains `scripts/terminal_capture.py`; many workspaces only contain scenario files and helper demo scripts.
+Either may be a real directory or a symlink to a local clone of the repo. If neither exists, locate the repo copy that contains this `SKILL.md`. Do not assume the user workspace also contains `scripts/terminal_capture.py`; many workspaces only contain scenario files and helper demo scripts.
 
 ## Workflow
 

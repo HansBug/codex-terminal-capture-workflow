@@ -2,7 +2,7 @@
   "name": "terminal-capture-workflow",
   "version": "0.1.0",
   "private": true,
-  "description": "Codex skill support files for terminal screenshots, GIFs, and videos.",
+  "description": "Agent skill support files for terminal screenshots, GIFs, and videos (Codex and Claude Code).",
   "type": "commonjs",
   "scripts": {
     "check": "python3 scripts/terminal_capture.py check"
